@@ -33,7 +33,7 @@ u8 spi_TX[264]; // SPI 发送缓冲区（256字节数据 + 4字节命令地址 +
  */
 void NSS_RESET()
 {
-	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET); // PA4 输出低电平
+	HAL_GPIO_WritePin(FLASH_CS_PORT, FLASH_CS_PIN, GPIO_PIN_RESET); // PA4 输出低电平
 }
 
 /**
@@ -42,7 +42,7 @@ void NSS_RESET()
  */
 void NSS_SET()
 {
-	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET); // PA4 输出高电平
+	HAL_GPIO_WritePin(FLASH_CS_PORT, FLASH_CS_PIN, GPIO_PIN_SET); // PA4 输出高电平
 }
 
 /**
@@ -95,6 +95,12 @@ void Write_Enable()
 	NSS_SET();			 // 释放 Flash
 }
 
+/**
+ * @brief 发送写禁用命令 (WRDI)，禁止 Flash 写入/擦除操作
+ * @note  WRDI 命令字节：0x04
+ *        执行后 WEL 位被清除，阻止任何写入/擦除操作
+ *        用于在不需要写操作时保护数据安全
+ */
 void Write_Disable()
 {
 	spi_TX[0] = WRDI;	 // 写禁用命令 (0x04)
@@ -128,12 +134,12 @@ bool Idle_Check()
  * @param Address 目标扇区内的任意地址（24 位地址）
  * @note  扇区大小为 4KB (4096 字节)
  *        擦除操作会将扇区内所有数据置为 0xFF
- *        擦除前会自动调用 Idle_Check() 等待 Flash 空闲
+ *        擦除前会自动调用 Idle_Check() 检查 Flash 是否空闲（忙则直接返回，不做等待）
  *        SE 命令字节：0x20
  */
 void Sector_Erase(u32 Address)
 {
-	if (Idle_Check() == false) // 等待 Flash 空闲
+	if (Idle_Check() == false) // 检查 Flash 是否空闲，忙则放弃本次操作
 	{
 		return;
 	}
@@ -147,17 +153,26 @@ void Sector_Erase(u32 Address)
 	NSS_SET();							  // 释放 Flash
 }
 
+/**
+ * @brief 擦除指定地址所在的块（32KB 或 64KB）
+ * @param Address 目标块内的任意地址（24 位）
+ * @param Is64K   true=64KB 块擦除(BE64K)，false=32KB 块擦除(BE32K)
+ * @note  32KB 块擦除命令 BE32K：0x52
+ *        64KB 块擦除命令 BE64K：0xD8
+ *        擦除前会自动调用 Idle_Check() 检查 Flash 是否空闲（忙则直接返回，不做等待）
+ *        擦除后块内所有数据置为 0xFF
+ */
 void Block_Erase(u32 Address, bool Is64K)
 {
-	if (Idle_Check() == false) // 等待 Flash 空闲
+	if (Idle_Check() == false) // 检查 Flash 是否空闲，忙则放弃本次操作
 	{
 		return;
 	}
 
-	spi_TX[0] = BE32K;
+	spi_TX[0] = BE32K; // 32KB 块擦除命令 (0x52)，Is64K 为 false 时使用
 	if (Is64K == true)
 	{
-		spi_TX[0] = BE64K;
+		spi_TX[0] = BE64K; // 64KB 块擦除命令 (0xD8)
 	}
 
 	Write_Enable();
@@ -167,6 +182,56 @@ void Block_Erase(u32 Address, bool Is64K)
 	NSS_RESET();						  // 选中 Flash
 	send(&spi_TX[0], 4);				  // 发送命令 + 3字节地址
 	NSS_SET();							  // 释放 Flash
+}
+
+/**
+ * @brief 擦除整个 Flash 芯片（全片擦除）
+ * @note  CE 命令字节：0x60 或 0xC7（本驱动使用 0xC7）
+ *        擦除前会自动调用 Idle_Check() 检查 Flash 是否空闲（忙则直接返回，不做等待）
+ *        全片擦除耗时较长（约 20~100 秒），期间 Flash 处于忙状态
+ *        擦除后所有数据置为 0xFF
+ */
+void Chip_Erase()
+{
+	if (Idle_Check() == false) // 检查 Flash 是否空闲，忙则放弃本次操作
+	{
+		return;
+	}
+	Write_Enable();
+	spi_TX[0] = CE;		 // 全片擦除命令 (0xC7)
+	NSS_RESET();		 // 选中 Flash
+	send(&spi_TX[0], 1); // 发送命令
+	NSS_SET();			 // 释放 Flash
+}
+
+/**
+ * @brief 暂停 Flash 的写入/擦除操作
+ * @note  PES 命令字节：0x75
+ *        暂停后可执行阵列读取操作（Read Array）
+ *        适用于需要在长时间擦除期间读取其他数据的场景
+ *        暂停后 WIP 位变为 0，PS 位（状态寄存器2 bit7）变为 1
+ */
+void Suspend_Writing_Cycle()
+{
+	spi_TX[0] = PES;
+	NSS_RESET();		 // 选中 Flash
+	send(&spi_TX[0], 1); // 发送命令
+	NSS_SET();			 // 释放 Flash
+}
+
+/**
+ * @brief 恢复之前被暂停的写入/擦除操作
+ * @note  PER 命令字节：0x7A
+ *        必须在 Suspend_Writing_Cycle() 之后调用
+ *        恢复后 Flash 继续执行之前的写入/擦除操作
+ *        PS 位（状态寄存器2 bit7）恢复为 0
+ */
+void Resume_Writing_Cycle()
+{
+	spi_TX[0] = PER;
+	NSS_RESET();		 // 选中 Flash
+	send(&spi_TX[0], 1); // 发送命令
+	NSS_SET();			 // 释放 Flash
 }
 
 /**
@@ -180,12 +245,17 @@ void Block_Erase(u32 Address, bool Is64K)
  */
 void Reset_flash()
 {
-	spi_TX[0] = ERST;	 // 使能复位命令 (0x66)
+	spi_TX[0] = ERST; // 使能复位命令 (0x66)
+
 	send(&spi_TX[0], 1); // 发送命令
-	HAL_Delay(1);		 // 等待 1ms
-	spi_TX[0] = RST;	 // 复位命令 (0x99)
+	NSS_RESET();
+	HAL_Delay(1); // 等待 1ms
+	NSS_SET();
+	spi_TX[0] = RST; // 复位命令 (0x99)
+	NSS_RESET();
 	send(&spi_TX[0], 1); // 发送命令
-	HAL_Delay(20);		 // 等待 20ms 复位完成
+	NSS_SET();
+	HAL_Delay(20); // 等待 20ms 复位完成
 }
 
 /**
@@ -194,9 +264,8 @@ void Reset_flash()
  * @param pdata 待写入的数据缓冲区指针
  * @param len 待写入的字节数，超过 256 时函数直接返回
  * @note  页大小为 256 字节，写入不能跨越页边界
- *        写入前会自动调用 Idle_Check() 等待 Flash 空闲
+ *        写入前会自动调用 Idle_Check() 检查 Flash 是否空闲（忙则直接返回，不做等待）
  *        PP 命令字节：0x02
- *        延迟 25ms 等待页编程完成
  */
 void Page_Program(u32 Address, u8 *pdata, u16 len)
 {
@@ -204,7 +273,7 @@ void Page_Program(u32 Address, u8 *pdata, u16 len)
 	{
 		return;
 	}
-	if (Idle_Check() == false) // 等待 Flash 空闲
+	if (Idle_Check() == false) // 检查 Flash 是否空闲，忙则放弃本次操作
 	{
 		return;
 	}
@@ -213,13 +282,10 @@ void Page_Program(u32 Address, u8 *pdata, u16 len)
 	spi_TX[1] = ((Address >> 16) & 0xff); // 地址高字节 (A23-A16)
 	spi_TX[2] = ((Address >> 8) & 0xff);  // 地址中字节 (A15-A8)
 	spi_TX[3] = (Address & 0xff);		  // 地址低字节 (A7-A0)
-	for (u16 index = 0; index < len; index++)
-	{
-		spi_TX[4 + index] = *(pdata + index); // 复制数据到发送缓冲区			//TODO:不拷贝数据到缓冲区
-	}
-	NSS_RESET();			   // 选中 Flash
-	send(&spi_TX[0], len + 4); // 发送命令 + 地址 + 数据
-	NSS_SET();				   // 释放 Flash
+	NSS_RESET();						  // 选中 Flash
+	send(&spi_TX[0], 4);				  // 发送命令 + 地址
+	send(pdata, len);					  // 发送数据
+	NSS_SET();							  // 释放 Flash
 }
 
 /**
@@ -228,13 +294,13 @@ void Page_Program(u32 Address, u8 *pdata, u16 len)
  * @param data_buf 用于存放读出数据的缓冲区指针
  * @param len 读取的字节数
  * @note  读取操作可以读取任意长度的数据（无页边界限制）
- *        读取前会自动调用 Idle_Check() 等待 Flash 空闲
+ *        读取前会自动调用 Idle_Check() 检查 Flash 是否空闲（忙则直接返回，不做等待）
  *        READ 命令字节：0x03
- *        延迟 50ms 等待数据稳定
+ *        注意：Flash 忙时函数直接返回，data_buf 内容保持不变（未定义数据）
  */
 void Read_Data(u32 Address, u8 *data_buf, u32 len)
 {
-	if (Idle_Check() == false) // 等待 Flash 空闲
+	if (Idle_Check() == false) // 检查 Flash 是否空闲，忙则放弃本次操作
 	{
 		return;
 	}
@@ -279,12 +345,12 @@ u16 Get_ID()
  */
 u32 Get_Identification()
 {
-	u32 DID = 0xffffff00;
-	spi_TX[0] = RDID;
-	NSS_RESET();
-	send_recv_Async(&spi_TX[0], &spi_RX[0], 1, 3);
-	NSS_SET();
-	DID = (spi_RX[0] << 24) | (spi_RX[1] << 16) | (spi_RX[2] << 8);
+	u32 DID = 0xffffff00;											// 初始化为无效值
+	spi_TX[0] = RDID;												// 读 JEDEC ID 命令 (0x9F)
+	NSS_RESET();													// 选中 Flash
+	send_recv_Async(&spi_TX[0], &spi_RX[0], 1, 3);					// 发送1字节命令，接收3字节 ID
+	NSS_SET();														// 释放 Flash
+	DID = (spi_RX[0] << 24) | (spi_RX[1] << 16) | (spi_RX[2] << 8); // 组合为32位 ID
 	return DID;
 }
 
@@ -297,10 +363,10 @@ u32 Get_Identification()
  */
 void Enable_Deep_PowerDown()
 {
-	spi_TX[0] = DP;
-	NSS_RESET();
-	send(&spi_TX[0], 1);
-	NSS_SET();
+	spi_TX[0] = DP;		 // 深度掉电命令 (0xB9)
+	NSS_RESET();		 // 选中 Flash
+	send(&spi_TX[0], 1); // 发送1字节命令
+	NSS_SET();			 // 释放 Flash
 }
 
 /**
@@ -311,10 +377,10 @@ void Enable_Deep_PowerDown()
  */
 void Release_Deep_PowerDown()
 {
-	spi_TX[0] = RDI;
-	NSS_RESET();
-	send(&spi_TX[0], 1);
-	NSS_SET();
+	spi_TX[0] = RDI;	 // 退出深度掉电命令 (0xAB)
+	NSS_RESET();		 // 选中 Flash
+	send(&spi_TX[0], 1); // 发送1字节命令
+	NSS_SET();			 // 释放 Flash
 }
 
 /**
@@ -328,11 +394,11 @@ void Release_Deep_PowerDown()
  */
 u8 Read_Status_Register(u8 Command)
 {
-	spi_TX[0] = Command;
-	u8 raw_Data = 0xff;
-	NSS_RESET();
-	send_recv_Async(&spi_TX[0], &raw_Data, 1, 1);
-	NSS_SET();
+	spi_TX[0] = Command;						  // 状态寄存器读取命令
+	u8 raw_Data = 0xff;							  // 初始化为全 1（无效值）
+	NSS_RESET();								  // 选中 Flash
+	send_recv_Async(&spi_TX[0], &raw_Data, 1, 1); // 发送命令，读取1字节状态
+	NSS_SET();									  // 释放 Flash
 	return raw_Data;
 }
 
@@ -347,9 +413,108 @@ void Write_Status_Register(u8 Command, u8 Data)
 {
 	Write_Enable();
 
-	spi_TX[0] = Command;
-	spi_TX[1] = Data;
-	NSS_RESET();
-	send(&spi_TX[0], 2);
-	NSS_SET();
+	spi_TX[0] = Command; // 状态寄存器写入命令 (WRSR0/1/2)
+	spi_TX[1] = Data;	 // 待写入的 8 位数据
+	NSS_RESET();		 // 选中 Flash
+	send(&spi_TX[0], 2); // 发送命令 + 数据
+	NSS_SET();			 // 释放 Flash
+}
+
+/**
+ * @brief 发送易失性状态寄存器写使能命令
+ * @note  VSR_WREN 命令字节：0x50
+ *        与普通 WREN (0x06) 不同，此命令允许直接写入状态寄存器
+ *        写入后状态寄存器值在断电后丢失，适合临时修改
+ *        常用于修改保护位或 QE 位而不想永久改变 Flash 配置
+ */
+void Write_Enable_for_Volatile_Status_Register()
+{
+	spi_TX[0] = VSR_WREN; // 写使能命令 (0x50)
+	NSS_RESET();		  // 选中 Flash
+	send(&spi_TX[0], 1);  // 发送1字节命令
+	NSS_SET();			  // 释放 Flash
+}
+
+/**
+ * @brief 向指定安全寄存器写入数据
+ * @param Register 目标安全寄存器编号（1 / 2 / 3）
+ * @param Address  目标起始偏移地址（12 位：高 4 位为寄存器编号，低 8 位为寄存器内偏移）
+ * @param pdata 待写入的数据缓冲区指针
+ * @param len 待写入的字节数，超过 1024 时函数直接返回
+ * @note  PSER 命令字节：0x42
+ *        安全寄存器共 3 个，每个 1024 字节
+ *        写入前会自动调用 Idle_Check() 检查 Flash 是否空闲
+ */
+void Program_Security_Registers(u8 Register, u16 Address, u8 *pdata, u16 len)
+{
+	if (len > 1024) // 单次写入上限 1024 字节（3 个寄存器总容量）
+	{
+		return;
+	}
+	if (Idle_Check() == false) // 检查 Flash 是否空闲，忙则放弃本次操作
+	{
+		return;
+	}
+	Write_Enable();
+	spi_TX[0] = PSER;									   // 安全寄存器编程命令 (0x42)
+	spi_TX[1] = 0x00;									   // 字节 0 为 dummy（固定填 0）
+	spi_TX[2] = (Register << 4) | ((Address >> 8) & 0b11); // 高 4 位为寄存器编号，低 2 位为地址高位
+	spi_TX[3] = Address & 0xff;							   // 地址低字节 (A7-A0)
+	NSS_RESET();										   // 选中 Flash
+	send(&spi_TX[0], 4);								   // 发送命令 + 地址
+	send(pdata, len);									   // 发送数据
+	NSS_SET();											   // 释放 Flash
+}
+
+/**
+ * @brief 读取指定安全寄存器中的数据
+ * @param Register 目标安全寄存器编号（1 / 2 / 3）
+ * @param Address  目标起始偏移地址（12 位：高 4 位为寄存器编号，低 8 位为寄存器内偏移）
+ * @param data_buf 用于存放读出数据的缓冲区指针
+ * @param len 读取的字节数
+ * @note  RSER 命令字节：0x48
+ *        地址字段后需额外发送 1 字节 dummy (0xFF) 再开始接收数据
+ *        安全寄存器共 3 个，每个 1024 字节
+ *        读取前会自动调用 Idle_Check() 检查 Flash 是否空闲
+ */
+void Read_Security_Registers(u8 Register, u16 Address, u8 *data_buf, u16 len)
+{
+	if (Idle_Check() == false) // 检查 Flash 是否空闲，忙则放弃本次操作
+	{
+		return;
+	}
+	spi_TX[0] = RSER;									   // 安全寄存器读取命令 (0x48)
+	spi_TX[1] = 0x00;									   // 字节 0 为 dummy（固定填 0）
+	spi_TX[2] = (Register << 4) | ((Address >> 8) & 0b11); // 高 4 位为寄存器编号，低 2 位为地址高位
+	spi_TX[3] = Address & 0xff;							   // 地址低字节 (A7-A0)
+	spi_TX[4] = 0xff;									   // 接收阶段的 dummy 字节
+	NSS_RESET();										   // 选中 Flash
+	send_recv_Async(&spi_TX[0], data_buf, 5, len);		   // 发送命令+地址+dummy，接收数据
+	NSS_SET();											   // 释放 Flash
+	return;
+}
+
+/**
+ * @brief 擦除指定安全寄存器
+ * @param Register 目标安全寄存器编号（1 / 2 / 3）
+ * @note  ESER 命令字节：0x44
+ *        擦除后该寄存器内所有数据置为 0xFF
+ *        安全寄存器共 3 个，每个 1024 字节
+ *        擦除前会自动调用 Idle_Check() 检查 Flash 是否空闲
+ */
+void Erase_Security_Registers(u8 Register)
+{
+	if (Idle_Check() == false) // 检查 Flash 是否空闲，忙则放弃本次操作
+	{
+		return;
+	}
+	Write_Enable();
+	spi_TX[0] = ESER;			 // 安全寄存器擦除命令 (0x44)
+	spi_TX[1] = 0x00;			 // 字节 0 为 dummy（固定填 0）
+	spi_TX[2] = (Register << 4); // 高 4 位为寄存器编号，低 4 位填 0（整寄存器擦除）
+	spi_TX[3] = 0x00;			 // 地址低字节填 0
+	NSS_RESET();				 // 选中 Flash
+	send(&spi_TX[0], 4);		 // 发送命令 + 地址
+	NSS_SET();					 // 释放 Flash
+	return;
 }
