@@ -42,47 +42,49 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "GD25Q32C_Command.h" // 命令字节宏（WREN/SE/PP/RDSR0 ...）
+
 // Configure
-#define HSPI hspi1
-#define FLASH_CS_PORT GPIOA
-#define FLASH_CS_PIN GPIO_PIN_4
+#define GD25Q32C_HSPI hspi1
+#define GD25Q32C_FLASH_CS_PORT GPIOA
+#define GD25Q32C_FLASH_CS_PIN GPIO_PIN_4
 
 // function
-void Write_Enable();
-void Write_Disable();
-bool Idle_Check();
-void Reset_flash();
-void Sector_Erase(unsigned int Address);
-void Block_Erase(unsigned int Address, bool Is64K);
-void Chip_Erase();
-void Page_Program(unsigned int Address, unsigned char *pdata, unsigned short len);
-void Read_Data(unsigned int Address, unsigned char *data_buf, unsigned int len);
-void Suspend_Writing_Cycle();
-void Resume_Writing_Cycle();
-unsigned short Get_ID();
-void NSS_RESET();
-void NSS_SET();
-unsigned int Get_Identification();
-void Enable_Deep_PowerDown();
-void Release_Deep_PowerDown();
-unsigned char Read_Status_Register(unsigned char Command);
-void Write_Status_Register(unsigned char Command, unsigned char Data);
-void Program_Security_Registers(unsigned char Register, unsigned short Address, unsigned char *pdata,
-								unsigned short len);
-void Read_Security_Registers(unsigned char Register, unsigned short Address, unsigned char *data_buf,
+void GD25Q32C_Write_Enable(void);
+void GD25Q32C_Write_Disable(void);
+bool GD25Q32C_Idle_Check(void);
+void GD25Q32C_Reset_flash(void);
+void GD25Q32C_Sector_Erase(unsigned int Address);
+void GD25Q32C_Block_Erase(unsigned int Address, bool Is64K);
+void GD25Q32C_Chip_Erase(void);
+void GD25Q32C_Page_Program(unsigned int Address, unsigned char *pdata, unsigned short len);
+void GD25Q32C_Read_Data(unsigned int Address, unsigned char *data_buf, unsigned int len);
+void GD25Q32C_Suspend_Writing_Cycle(void);
+void GD25Q32C_Resume_Writing_Cycle(void);
+unsigned short GD25Q32C_Get_ID(void);
+void GD25Q32C_NSS_RESET(void);
+void GD25Q32C_NSS_SET(void);
+unsigned int GD25Q32C_Get_Identification(void);
+void GD25Q32C_Enable_Deep_Power_Down(void);
+void GD25Q32C_Release_Deep_Power_Down(void);
+unsigned char GD25Q32C_Read_Status_Register(unsigned char Command);
+void GD25Q32C_Write_Status_Register(unsigned char Command, unsigned char Data);
+void GD25Q32C_Program_Security_Registers(unsigned char Register, unsigned short Address, unsigned char *pdata,
+									unsigned short len);
+void GD25Q32C_Read_Security_Registers(unsigned char Register, unsigned short Address, unsigned char *data_buf,
 							 unsigned short len);
-void Erase_Security_Registers(unsigned char Register);
-void Write_Enable_for_Volatile_Status_Register();
+void GD25Q32C_Erase_Security_Registers(unsigned char Register);
+void GD25Q32C_Write_Enable_for_Volatile_Status_Register(void);
 
-#define Read_Status_Register_0() Read_Status_Register(0x05)
-#define Read_Status_Register_1() Read_Status_Register(0x35)
-#define Read_Status_Register_2() Read_Status_Register(0x15)
-#define Write_Status_Register_0(RAWDATA) Write_Status_Register(0x01, RAWDATA)
-#define Write_Status_Register_1(RAWDATA) Write_Status_Register(0x31, RAWDATA)
-#define Write_Status_Register_2(RAWDATA) Write_Status_Register(0x11, RAWDATA)
+#define GD25Q32C_Read_Status_Register_0() GD25Q32C_Read_Status_Register(RDSR0)
+#define GD25Q32C_Read_Status_Register_1() GD25Q32C_Read_Status_Register(RDSR1)
+#define GD25Q32C_Read_Status_Register_2() GD25Q32C_Read_Status_Register(RDSR2)
+#define GD25Q32C_Write_Status_Register_0(RAWDATA) GD25Q32C_Write_Status_Register(WRSR0, RAWDATA)
+#define GD25Q32C_Write_Status_Register_1(RAWDATA) GD25Q32C_Write_Status_Register(WRSR1, RAWDATA)
+#define GD25Q32C_Write_Status_Register_2(RAWDATA) GD25Q32C_Write_Status_Register(WRSR2, RAWDATA)
 
-#define Block_Erase_32K(ADDRESS) Block_Erase(ADDRESS, false)
-#define Block_Erase_64K(ADDRESS) Block_Erase(ADDRESS, true)
+#define GD25Q32C_Block_Erase_32K(ADDRESS) GD25Q32C_Block_Erase(ADDRESS, false)
+#define GD25Q32C_Block_Erase_64K(ADDRESS) GD25Q32C_Block_Erase(ADDRESS, true)
 #endif /* INC_GD25Q32C_H_ */
 
 /*
