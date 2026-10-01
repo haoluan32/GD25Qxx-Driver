@@ -1,6 +1,27 @@
-# GD25Q32C SPI Flash 驱动
+# GD25Qxx-Driver
 
-一个轻量级的 GD25Q32C（及兼容型号）SPI Flash 驱动库，仅支持 **标准 SPI（Single SPI）模式**。
+<p align="center">
+  <a href="https://github.com/haoluan32/GD25Qxx-Driver/stargazers">
+    <img src="https://img.shields.io/github/stars/haoluan32/GD25Qxx-Driver?style=for-the-badge&logo=github&logoColor=white&label=Stars" alt="Stars">
+  </a>
+  <a href="https://github.com/haoluan32/GD25Qxx-Driver/network/members">
+    <img src="https://img.shields.io/github/forks/haoluan32/GD25Qxx-Driver?style=for-the-badge&logo=github&logoColor=white&label=Forks" alt="Forks">
+  </a>
+  <a href="https://github.com/haoluan32/GD25Qxx-Driver/issues">
+    <img src="https://img.shields.io/github/issues/haoluan32/GD25Qxx-Driver?style=for-the-badge&logo=github&logoColor=white&label=Issues" alt="Issues">
+  </a>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Language-C-00599C?style=for-the-badge&logo=c&logoColor=white" alt="C">
+  <img src="https://img.shields.io/badge/Interface-SPI-FF6F00?style=for-the-badge" alt="SPI">
+  <img src="https://img.shields.io/badge/Chip-GD25Q32C-4B0082?style=for-the-badge" alt="GD25Q32C">
+  <a href="https://github.com/haoluan32/GD25Qxx-Driver/blob/main/LICENSE">
+    <img src="https://img.shields.io/badge/License-EPL--2.0-2C2255?style=for-the-badge&logo=opensourceinitiative&logoColor=white" alt="License: EPL-2.0">
+  </a>
+</p>
+
+一个轻量级的 GD25Q32C（及兼容型号）SPI Flash 驱动库，仅支持**标准 SPI（Single SPI）模式**。
 
 ## 文件说明
 
