@@ -42,8 +42,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "GD25Q32C_Command.h" // 命令字节宏（WREN/SE/PP/RDSR0 ...）
-
 // Configure
 #define GD25Q32C_HSPI hspi1
 #define GD25Q32C_FLASH_CS_PORT GPIOA
@@ -70,18 +68,18 @@ void GD25Q32C_Release_Deep_Power_Down(void);
 unsigned char GD25Q32C_Read_Status_Register(unsigned char Command);
 void GD25Q32C_Write_Status_Register(unsigned char Command, unsigned char Data);
 void GD25Q32C_Program_Security_Registers(unsigned char Register, unsigned short Address, unsigned char *pdata,
-									unsigned short len);
+										 unsigned short len);
 void GD25Q32C_Read_Security_Registers(unsigned char Register, unsigned short Address, unsigned char *data_buf,
-							 unsigned short len);
+									  unsigned short len);
 void GD25Q32C_Erase_Security_Registers(unsigned char Register);
 void GD25Q32C_Write_Enable_for_Volatile_Status_Register(void);
 
-#define GD25Q32C_Read_Status_Register_0() GD25Q32C_Read_Status_Register(RDSR0)
-#define GD25Q32C_Read_Status_Register_1() GD25Q32C_Read_Status_Register(RDSR1)
-#define GD25Q32C_Read_Status_Register_2() GD25Q32C_Read_Status_Register(RDSR2)
-#define GD25Q32C_Write_Status_Register_0(RAWDATA) GD25Q32C_Write_Status_Register(WRSR0, RAWDATA)
-#define GD25Q32C_Write_Status_Register_1(RAWDATA) GD25Q32C_Write_Status_Register(WRSR1, RAWDATA)
-#define GD25Q32C_Write_Status_Register_2(RAWDATA) GD25Q32C_Write_Status_Register(WRSR2, RAWDATA)
+#define GD25Q32C_Read_Status_Register_0() GD25Q32C_Read_Status_Register(0x05)
+#define GD25Q32C_Read_Status_Register_1() GD25Q32C_Read_Status_Register(0x35)
+#define GD25Q32C_Read_Status_Register_2() GD25Q32C_Read_Status_Register(0x15)
+#define GD25Q32C_Write_Status_Register_0(RAWDATA) GD25Q32C_Write_Status_Register(0x01, RAWDATA)
+#define GD25Q32C_Write_Status_Register_1(RAWDATA) GD25Q32C_Write_Status_Register(0x31, RAWDATA)
+#define GD25Q32C_Write_Status_Register_2(RAWDATA) GD25Q32C_Write_Status_Register(0x11, RAWDATA)
 
 #define GD25Q32C_Block_Erase_32K(ADDRESS) GD25Q32C_Block_Erase(ADDRESS, false)
 #define GD25Q32C_Block_Erase_64K(ADDRESS) GD25Q32C_Block_Erase(ADDRESS, true)
