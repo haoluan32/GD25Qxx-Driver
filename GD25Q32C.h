@@ -25,7 +25,7 @@
  *   0x38         - 进入 QPI 模式
  *
  * 使用前请确保：
- *   1. Flash 的 QE 位（状态寄存器2 的 bit1）为 0；
+ *   1. Flash 的 QE 位（状态寄存器1 的 bit1）为 0；
  *   2. 芯片未进入 Dual / Quad / QPI 模式；
  *   3. SPI 使用标准单线 MOSI/MISO 连接。
  *
@@ -46,41 +46,6 @@
 #define HSPI hspi1
 #define FLASH_CS_PORT GPIOA
 #define FLASH_CS_PIN GPIO_PIN_4
-
-// commands
-#define WREN 0x06
-#define WRDI 0x04
-
-#define SE 0x20
-#define BE32K 0x52
-#define BE64K 0xd8
-#define CE 0xc7
-
-#define PP 0x02
-#define READ 0x03
-#define PES 0x75
-#define PER 0x7a
-
-#define ESER 0x44
-#define PSER 0x42
-#define RSER 0x48
-
-#define ERST 0x66
-#define RST 0x99
-
-#define RDSR0 0x05
-#define RDSR1 0x35
-#define RDSR2 0x15
-#define WRSR0 0x01
-#define WRSR1 0x31
-#define WRSR2 0x11
-#define VSR_WREN 0x50
-
-#define REMS 0x90
-#define RDID 0x9f
-
-#define DP 0xb9
-#define RDI 0xab
 
 // function
 void Write_Enable();
@@ -109,12 +74,12 @@ void Read_Security_Registers(unsigned char Register, unsigned short Address, uns
 void Erase_Security_Registers(unsigned char Register);
 void Write_Enable_for_Volatile_Status_Register();
 
-#define Read_Status_Register_0() Read_Status_Register(RDSR0)
-#define Read_Status_Register_1() Read_Status_Register(RDSR1)
-#define Read_Status_Register_2() Read_Status_Register(RDSR2)
-#define Write_Status_Register_0(RAWDATA) Write_Status_Register(WRSR0, RAWDATA)
-#define Write_Status_Register_1(RAWDATA) Write_Status_Register(WRSR1, RAWDATA)
-#define Write_Status_Register_2(RAWDATA) Write_Status_Register(WRSR2, RAWDATA)
+#define Read_Status_Register_0() Read_Status_Register(0x05)
+#define Read_Status_Register_1() Read_Status_Register(0x35)
+#define Read_Status_Register_2() Read_Status_Register(0x15)
+#define Write_Status_Register_0(RAWDATA) Write_Status_Register(0x01, RAWDATA)
+#define Write_Status_Register_1(RAWDATA) Write_Status_Register(0x31, RAWDATA)
+#define Write_Status_Register_2(RAWDATA) Write_Status_Register(0x11, RAWDATA)
 
 #define Block_Erase_32K(ADDRESS) Block_Erase(ADDRESS, false)
 #define Block_Erase_64K(ADDRESS) Block_Erase(ADDRESS, true)
@@ -133,7 +98,7 @@ WRDI		0x04	Write Disable
 SE      	0x20    Sector Erase
 BE32K		0x52	Block Erase(32K)
 BE64K		0xD8	Block Erase(64K)
-CE			0x60	Chip Erase
+CE			0xC7	Chip Erase
 PP      	0x02    Page Program
 PES			0x75	Program/Erase Suspend
 PER 		0x7A	Program/Erase Resume

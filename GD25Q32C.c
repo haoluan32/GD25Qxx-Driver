@@ -5,7 +5,8 @@
  * @date 2026年8月19日
  */
 
-#include "GD25Q32C.h"			// GD25Q32C Flash 驱动头文件
+#include "GD25Q32C.h" // GD25Q32C Flash 驱动头文件
+#include "GD25Q32C_Command.h"
 #include "cmsis_os.h"			// CMSIS-RTOS 操作系统头文件
 #include "main.h"				// 主程序头文件（包含硬件配置）
 #include "mem.h"				// 内存管理头文件
@@ -13,8 +14,9 @@
 #include "stm32f4xx_hal.h"		// STM32F4 HAL 库主头文件
 #include "stm32f4xx_hal_gpio.h" // GPIO 操作头文件
 #include "stm32f4xx_hal_spi.h"	// SPI 操作头文件
-#include <stdbool.h>			//标准布尔类型定义
-#include <stdint.h>				// 标准整数类型定义
+
+#include <stdbool.h> //标准布尔类型定义
+#include <stdint.h>	 // 标准整数类型定义
 
 // 自定义类型定义（与嵌入式常用命名一致）
 #define u8 unsigned char   // 8位无符号整数
@@ -209,7 +211,7 @@ void Chip_Erase()
  * @note  PES 命令字节：0x75
  *        暂停后可执行阵列读取操作（Read Array）
  *        适用于需要在长时间擦除期间读取其他数据的场景
- *        暂停后 WIP 位变为 0，PS 位（状态寄存器2 bit7）变为 1
+ *        暂停后 WIP 位变为 0，PS 位（状态寄存器1 bit7）变为 1
  */
 void Suspend_Writing_Cycle()
 {
@@ -224,7 +226,7 @@ void Suspend_Writing_Cycle()
  * @note  PER 命令字节：0x7A
  *        必须在 Suspend_Writing_Cycle() 之后调用
  *        恢复后 Flash 继续执行之前的写入/擦除操作
- *        PS 位（状态寄存器2 bit7）恢复为 0
+ *        PS 位（状态寄存器1 bit7）恢复为 0
  */
 void Resume_Writing_Cycle()
 {
@@ -246,11 +248,10 @@ void Resume_Writing_Cycle()
 void Reset_flash()
 {
 	spi_TX[0] = ERST; // 使能复位命令 (0x66)
-
-	send(&spi_TX[0], 1); // 发送命令
 	NSS_RESET();
-	HAL_Delay(1); // 等待 1ms
+	send(&spi_TX[0], 1); // 发送命令
 	NSS_SET();
+	HAL_Delay(1);	 // 等待 1ms
 	spi_TX[0] = RST; // 复位命令 (0x99)
 	NSS_RESET();
 	send(&spi_TX[0], 1); // 发送命令
@@ -438,7 +439,7 @@ void Write_Enable_for_Volatile_Status_Register()
 /**
  * @brief 向指定安全寄存器写入数据
  * @param Register 目标安全寄存器编号（1 / 2 / 3）
- * @param Address  目标起始偏移地址（12 位：高 4 位为寄存器编号，低 8 位为寄存器内偏移）
+ * @param Address  目标起始偏移地址（10 位有效，0x000~0x3FF）
  * @param pdata 待写入的数据缓冲区指针
  * @param len 待写入的字节数，超过 1024 时函数直接返回
  * @note  PSER 命令字节：0x42
@@ -457,7 +458,7 @@ void Program_Security_Registers(u8 Register, u16 Address, u8 *pdata, u16 len)
 	}
 	Write_Enable();
 	spi_TX[0] = PSER;									   // 安全寄存器编程命令 (0x42)
-	spi_TX[1] = 0x00;									   // 字节 0 为 dummy（固定填 0）
+	spi_TX[1] = 0x00;									   // 地址高字节 A23:A16（固定 0x00）
 	spi_TX[2] = (Register << 4) | ((Address >> 8) & 0b11); // 高 4 位为寄存器编号，低 2 位为地址高位
 	spi_TX[3] = Address & 0xff;							   // 地址低字节 (A7-A0)
 	NSS_RESET();										   // 选中 Flash
@@ -469,7 +470,7 @@ void Program_Security_Registers(u8 Register, u16 Address, u8 *pdata, u16 len)
 /**
  * @brief 读取指定安全寄存器中的数据
  * @param Register 目标安全寄存器编号（1 / 2 / 3）
- * @param Address  目标起始偏移地址（12 位：高 4 位为寄存器编号，低 8 位为寄存器内偏移）
+ * @param Address  目标起始偏移地址（10 位有效，0x000~0x3FF）
  * @param data_buf 用于存放读出数据的缓冲区指针
  * @param len 读取的字节数
  * @note  RSER 命令字节：0x48
@@ -484,7 +485,7 @@ void Read_Security_Registers(u8 Register, u16 Address, u8 *data_buf, u16 len)
 		return;
 	}
 	spi_TX[0] = RSER;									   // 安全寄存器读取命令 (0x48)
-	spi_TX[1] = 0x00;									   // 字节 0 为 dummy（固定填 0）
+	spi_TX[1] = 0x00;									   // 地址高字节 A23:A16（固定 0x00）
 	spi_TX[2] = (Register << 4) | ((Address >> 8) & 0b11); // 高 4 位为寄存器编号，低 2 位为地址高位
 	spi_TX[3] = Address & 0xff;							   // 地址低字节 (A7-A0)
 	spi_TX[4] = 0xff;									   // 接收阶段的 dummy 字节
@@ -510,7 +511,7 @@ void Erase_Security_Registers(u8 Register)
 	}
 	Write_Enable();
 	spi_TX[0] = ESER;			 // 安全寄存器擦除命令 (0x44)
-	spi_TX[1] = 0x00;			 // 字节 0 为 dummy（固定填 0）
+	spi_TX[1] = 0x00;			 // 地址高字节 A23:A16（固定 0x00）
 	spi_TX[2] = (Register << 4); // 高 4 位为寄存器编号，低 4 位填 0（整寄存器擦除）
 	spi_TX[3] = 0x00;			 // 地址低字节填 0
 	NSS_RESET();				 // 选中 Flash
